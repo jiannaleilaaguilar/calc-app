@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Calculations BREAD Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 800px; }
+    form { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    .error { color: red; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Calculation Manager</h2>
+  <div id="error-msg" class="error"></div>
+
+  <form id="calc-form">
+    <input type="hidden" id="calc-id" />
+    <input type="number" step="any" id="operand1" placeholder="Operand 1" required />
+    <select id="operation" required>
+      <option value="add">+</option>
+      <option value="subtract">-</option>
+      <option value="multiply">*</option>
+      <option value="divide">/</option>
+    </select>
+    <input type="number" step="any" id="operand2" placeholder="Operand 2" required />
+    <button type="submit" id="submit-btn">Add Calculation</button>
+    <button type="button" id="cancel-btn" style="display:none;" onclick="resetForm()">Cancel</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Operation</th>
+        <th>Operand 1</th>
+        <th>Operand 2</th>
+        <th>Result</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="calc-table-body"></tbody>
+  </table>
+
+  <script>
+    const API_URL = '/calculations';
+
+    async function fetchCalculations() {
+      const res = await fetch(API_URL);
+      if (res.ok) {
+        const data = await res.json();
+        renderTable(data);
+      }
+    }
+
+    function renderTable(items) {
+      const tbody = document.getElementById('calc-table-body');
+      tbody.innerHTML = items.map(c => `
+        <tr data-id="${c.id}">
+          <td>${c.id}</td>
+          <td>${c.operation}</td>
+          <td>${c.operand1}</td>
+          <td>${c.operand2}</td>
+          <td><strong>${c.result}</strong></td>
+          <td>
+            <button onclick="editCalc(${c.id}, '${c.operation}', ${c.operand1}, ${c.operand2})">Edit</button>
+            <button onclick="deleteCalc(${c.id})">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    document.getElementById('calc-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('calc-id').value;
+      const op = document.getElementById('operation').value;
+      const val1 = parseFloat(document.getElementById('operand1').value);
+      const val2 = parseFloat(document.getElementById('operand2').value);
+      const errBox = document.getElementById('error-msg');
+      errBox.innerText = '';
+
+      if (isNaN(val1) || isNaN(val2)) {
+        errBox.innerText = 'Please enter valid numerical inputs.';
+        return;
+      }
+      if (op === 'divide' && val2 === 0) {
+        errBox.innerText = 'Cannot divide by zero.';
+        return;
+      }
+
+      const payload = { operation: op, operand1: val1, operand2: val2 };
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? `${API_URL}/${id}` : API_URL;
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        resetForm();
+        fetchCalculations();
+      } else {
+        const err = await res.json();
+        errBox.innerText = err.detail || 'An error occurred.';
+      }
+    });
+
+    function editCalc(id, op, val1, val2) {
+      document.getElementById('calc-id').value = id;
+      document.getElementById('operation').value = op;
+      document.getElementById('operand1').value = val1;
+      document.getElementById('operand2').value = val2;
+      document.getElementById('submit-btn').innerText = 'Update Calculation';
+      document.getElementById('cancel-btn').style.display = 'inline';
+    }
+
+    function resetForm() {
+      document.getElementById('calc-id').value = '';
+      document.getElementById('calc-form').reset();
+      document.getElementById('submit-btn').innerText = 'Add Calculation';
+      document.getElementById('cancel-btn').style.display = 'none';
+    }
+
+    async function deleteCalc(id) {
+      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchCalculations();
+    }
+
+    fetchCalculations();
+  </script>
+</body>
+</html>
